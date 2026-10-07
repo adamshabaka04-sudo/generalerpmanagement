@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: fit-out-manager-demo
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: FITOUT_DB
+        value: /data/fitout.sqlite3
