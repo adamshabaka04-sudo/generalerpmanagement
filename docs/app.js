@@ -1,0 +1,40 @@
+let state, page='Overview';
+const pages=['Overview','Clients','Estimates','Projects','Purchasing','Inventory','Site reports'];
+const $=id=>document.getElementById(id);
+const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=n=>new Intl.NumberFormat('en-AE',{style:'currency',currency:'AED',maximumFractionDigits:0}).format(n);
+const company=()=>$('company').value;
+const filtered=items=>items.filter(x=>company()==='All companies'||x.company===company());
+const records=kind=>filtered(state.records).filter(x=>x.kind===kind);
+function notify(text){$('message').textContent=text;$('message').style.display='block';setTimeout(()=>$('message').style.display='none',4000)}
+async function refresh(){state=demoStore.read();render()}
+async function save(data){try{demoStore.save(data);await refresh();notify('Saved in this browser')}catch(e){notify(e.message)}}
+function companyField(){return `<label>Company<select name="company">${['Company A','Company B','Company C'].map(c=>`<option ${c===company()?'selected':''}>${c}</option>`).join('')}</select></label>`}
+function input(label,name,value='',type='text'){return `<label>${label}<input name="${name}" type="${type}" value="${escape(value)}" required ${type==='number'?'min="0" step="any"':''}></label>`}
+function table(items,quantity=false){return items.length?`<table><thead><tr><th>Name / detail</th><th>Company</th><th>${quantity?'Litres':'Value'}</th><th>Status</th></tr></thead><tbody>${items.map(x=>`<tr><td>${escape(x.name)}<small>${escape(x.detail)}</small></td><td>${escape(x.company)}</td><td>${quantity?x.amount:money(x.amount)}</td><td><span class="tag">${escape(x.status)}</span></td></tr>`).join('')}</tbody></table>`:'<div class="empty">No records yet. Add the first record below.</div>'}
+function render(){
+ $('title').textContent=page;
+ $('nav').innerHTML=pages.map((p,i)=>`<button class="${page===p?'active':''}" data-page="${p}">${['◫','◎','▤','▦','↗','▣','☷'][i]} &nbsp; ${p}</button>`).join('');
+ document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{page=b.dataset.page;render()});
+ let html='';
+ if(page==='Overview'){
+ const projects=records('projects');
+ html=`<div class="cards">${[['Project contract value',money(projects.reduce((s,x)=>s+x.amount,0)),'Recorded project values'],['Projects',projects.length,'Across selected companies'],['Paint on hand',filtered(state.stock).reduce((s,x)=>s+x.litres,0)+' L','Demonstration paint stock'],['Site reports',filtered(state.reports).length,'Reported work · awaiting inspection']].map(([a,b,c])=>`<div class="card"><small>${a}</small><strong>${b}</strong><span class="hint">${c}</span></div>`).join('')}</div><div class="panel"><div class="row"><div><h2>Projects at a glance</h2><p>From the first estimate to the final finish.</p></div><span class="tag">Operational pilot</span></div>${table(projects)}</div><div class="panel"><h2>Your next steps</h2><p>Create a customer, estimate the paint requirement, record a project and request materials. Site teams can then submit daily reports.</p><span class="subtle">Sample companies and projects are fictional. Values are test fixtures from the PRD.</span></div>`;
+ } else if(page==='Estimates'){
+ html=`<div class="panel"><h2>Paint requirement calculator</h2><p>Plan material demand using approved measurements and coverage rates. These starting values are PRD test data.</p><div class="calculator"><form id="calculator">${input('Homes','homes',20,'number')}${input('Paintable area per home (m²)','area',250,'number')}${input('Coats','coats',2,'number')}${input('Coverage (m² per litre per coat)','coverage',10,'number')}${input('Waste allowance (%)','waste',10,'number')}${input('Eligible stock (L)','stock',200,'number')}${input('Eligible incoming supply (L)','incoming',100,'number')}${input('Pack size (L)','pack',20,'number')}${input('Direct cost (AED)','cost',100000,'number')}${input('Target margin (%)','margin',20,'number')}</form><div id="calculation" class="result" aria-live="polite"></div></div></div>`;
+ html+=recordPanel('estimates','Saved draft quotations','Save a draft quotation');
+ } else if(page==='Inventory'){
+ html=`<div class="cards">${filtered(state.stock).map(x=>`<div class="card"><small>${escape(x.company)}</small><strong>${x.litres} L</strong><span class="hint">Interior paint · on hand</span></div>`).join('')}</div><div class="panel"><h2>Record a stock movement</h2><p>Receive paint or record consumption. Consumption cannot exceed on-hand stock.</p><form id="stock">${companyField()}<label>Movement<select name="direction"><option value="receive">Receive</option><option value="consume">Consume</option></select></label>${input('Quantity (litres)','quantity','','number')}${input('Reference / reason','detail')}<button class="primary">Record movement</button></form></div><div class="panel"><h2>Movement history</h2>${table(records('movements'),true)}</div>`;
+ } else if(page==='Site reports'){
+ html=`<div class="panel"><h2>Daily site report</h2><p>Record reported work for the demonstration 20-home project. Reported quantities are not inspected, accepted or billable progress.</p><form id="report">${companyField()}${input('Home number (1–20)','home',1,'number')}${input('Reported completed area (m²)','quantity','','number')}${input('Work description / issues','note')}<button class="primary">Submit report</button></form></div><div class="panel"><h2>Recent reports</h2>${filtered(state.reports).length?`<table><thead><tr><th>Home</th><th>Company</th><th>Reported area</th><th>Notes</th></tr></thead><tbody>${filtered(state.reports).slice().reverse().map(x=>`<tr><td>Home ${x.home}</td><td>${escape(x.company)}</td><td>${x.quantity} m²</td><td>${escape(x.note)}</td></tr>`).join('')}</tbody></table>`:'<p>No site reports yet.</p>'}</div>`;
+ } else html=recordPanel(page.toLowerCase(),page,'Add '+({Clients:'customer',Projects:'project',Purchasing:'purchase request'}[page]));
+ $('content').innerHTML=html;
+ const form=$('record');if(form)form.onsubmit=e=>{e.preventDefault();save({action:'record',kind:page.toLowerCase(),...Object.fromEntries(new FormData(form))})};
+ const stock=$('stock');if(stock)stock.onsubmit=e=>{e.preventDefault();save({action:'stock',...Object.fromEntries(new FormData(stock))})};
+ const report=$('report');if(report){const submission=crypto.randomUUID();report.onsubmit=e=>{e.preventDefault();save({action:'report',submission,...Object.fromEntries(new FormData(report))})}}
+ const calc=$('calculator');if(calc){calc.oninput=calculate;calculate()}
+}
+function recordPanel(kind,title,add){return `<div class="panel"><h2>${title}</h2>${table(records(kind))}</div><div class="panel"><h2>${add}</h2><form id="record">${companyField()}${input('Name / reference','name')}${input('Description / scope','detail')}${input(kind==='clients'?'Opening value (AED)':'Value (AED)','amount',0,'number')}<button class="primary">Save ${kind==='estimates'?'draft':'record'}</button></form></div>`}
+function calculate(){const d=Object.fromEntries(new FormData($('calculator')));for(const k in d)d[k]=Number(d[k]);if(Object.values(d).some(x=>!Number.isFinite(x)||x<0)||d.coverage<=0||d.pack<=0||d.margin>=100){$('calculation').textContent='Use positive coverage and pack size, nonnegative values and a margin below 100%.';return}const litres=d.homes*d.area*d.coats/d.coverage*(1+d.waste/100),net=Math.max(0,litres-d.stock-d.incoming);$('calculation').innerHTML=`<small>Total paint required</small><strong>${litres.toLocaleString()} L</strong><p>Net new demand: <b>${net.toLocaleString()} L</b><br>Order: <b>${Math.ceil(net/d.pack)} packs</b> × ${d.pack} L</p><hr><p>Price before tax at ${d.margin}% margin</p><strong>${money(d.cost/(1-d.margin/100))}</strong><p class="subtle">Calculate colors, finishes and delivery dates separately. Primer is a separate recipe. Tax, overhead and approvals are not included here.</p>`}
+ $('company').onchange=render;
+refresh().catch(e=>notify(e.message));

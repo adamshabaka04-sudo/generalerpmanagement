@@ -1,5 +1,9 @@
 # Fit-Out Manager
 
+## No-card browser demo
+
+The `docs/` folder is a standalone GitHub Pages demo. In GitHub Settings → Pages, select Deploy from a branch, branch `main`, folder `/docs`, and Save. The demo stores records in the visitor's browser with localStorage, with no backend or shared database. Clearing browser storage resets the sample data. Do not enter sensitive information on shared devices. Validate its storage workflows with `node --test tests/demo-store.test.cjs`.
+
 Local operational demonstration based on the UAE Paint and Fit Out PRD. Requires Python 3.12 or later; no packages or external services required.
 
 Run `python app.py` from this directory. The local server listens on port 8000. SQLite data persists in `fitout.sqlite3` (ignored by Git). Override the database with `FITOUT_DB` and port with `PORT`.
